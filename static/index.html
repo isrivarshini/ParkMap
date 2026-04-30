@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ParkSpot — Mountain View</title>
+<script src="https://unpkg.com/deck.gl@^9.0.0/dist.min.js"></script>
+<script src="https://unpkg.com/maplibre-gl@3.6.0/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/maplibre-gl@3.6.0/dist/maplibre-gl.css" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:100vw;height:100vh;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+#map{width:100%;height:100%}
+
+body.dark{
+  --bg:rgba(15,15,20,0.93);
+  --bg-solid:#0f0f14;
+  --border:rgba(255,255,255,0.1);
+  --text:#f0f0f0;
+  --muted:#888;
+  --input-bg:rgba(255,255,255,0.06);
+  --input-border:rgba(255,255,255,0.12);
+  --btn-bg:rgba(255,255,255,0.06);
+  --btn-hover:rgba(255,255,255,0.12);
+}
+body.light{
+  --bg:rgba(255,255,255,0.95);
+  --bg-solid:#ffffff;
+  --border:rgba(0,0,0,0.1);
+  --text:#111;
+  --muted:#666;
+  --input-bg:rgba(0,0,0,0.03);
+  --input-border:rgba(0,0,0,0.12);
+  --btn-bg:rgba(0,0,0,0.04);
+  --btn-hover:rgba(0,0,0,0.08);
+}
+
+#panel{
+  position:absolute;top:16px;left:16px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:14px;padding:16px;width:220px;z-index:10;
+}
+#panel h1{font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px}
+#panel .sub{font-size:11px;color:var(--muted);margin-bottom:14px}
+.section-label{font-size:10px;font-weight:600;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+
+.filters{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.filter-btn{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;
+  border-radius:8px;border:1px solid var(--border);
+  background:var(--btn-bg);cursor:pointer;font-size:12px;
+  color:var(--text);text-align:left;width:100%;transition:background 0.15s;
+}
+.filter-btn:hover{background:var(--btn-hover)}
+.filter-btn.active{border-color:currentColor}
+.filter-btn .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.filter-btn .count{margin-left:auto;font-size:10px;color:var(--muted)}
+
+.slider-row{margin-bottom:14px}
+.slider-row input[type=range]{width:100%;accent-color:#378ADD;cursor:pointer}
+.slider-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px}
+
+#theme-btn,#add-btn{
+  width:100%;padding:8px;border-radius:8px;
+  border:1px solid var(--border);background:var(--btn-bg);
+  color:var(--text);font-size:12px;cursor:pointer;
+  transition:background 0.15s;margin-top:6px;
+}
+#theme-btn:hover,#add-btn:hover{background:var(--btn-hover)}
+#add-btn{background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.4);color:#22c55e;font-weight:600}
+#add-btn.active{background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#ef4444}
+
+#stats{
+  position:absolute;bottom:16px;left:16px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;padding:8px 14px;
+  font-size:12px;color:var(--muted);z-index:10;
+}
+#stats span{color:var(--text);font-weight:600}
+
+#tooltip{
+  position:absolute;pointer-events:none;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;padding:10px 13px;
+  font-size:12px;color:var(--text);
+  z-index:20;display:none;min-width:160px;
+}
+#tooltip .tt-type{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px}
+#tooltip .tt-row{display:flex;justify-content:space-between;gap:16px;color:var(--muted);margin-top:2px}
+#tooltip .tt-row span{color:var(--text)}
+
+#drawer{
+  position:absolute;top:0;right:-340px;width:320px;height:100%;
+  background:var(--bg-solid);border-left:1px solid var(--border);
+  z-index:30;padding:24px 20px;
+  transition:right 0.3s cubic-bezier(0.4,0,0.2,1);
+  overflow-y:auto;
+}
+#drawer.open{right:0}
+#drawer h2{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+#drawer .dsub{font-size:12px;color:var(--muted);margin-bottom:20px}
+
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+.field input,.field textarea,.field select{
+  width:100%;padding:8px 10px;border-radius:8px;
+  border:1px solid var(--input-border);
+  background:var(--input-bg);color:var(--text);
+  font-size:13px;font-family:inherit;outline:none;transition:border 0.15s;
+}
+.field input:focus,.field textarea:focus{border-color:#378ADD}
+.field textarea{resize:vertical;min-height:70px}
+
+.type-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.type-opt{
+  padding:8px 4px;border-radius:8px;
+  border:1px solid var(--input-border);
+  background:var(--input-bg);cursor:pointer;
+  font-size:11px;color:var(--muted);
+  text-align:center;transition:all 0.15s;
+}
+.type-opt:hover{background:var(--btn-hover)}
+.type-opt .dot{width:8px;height:8px;border-radius:50%;margin:0 auto 4px}
+.type-opt.selected.free{border-color:#22c55e;background:rgba(34,197,94,0.1);color:var(--text);font-weight:600}
+.type-opt.selected.paid{border-color:#ef4444;background:rgba(239,68,68,0.1);color:var(--text);font-weight:600}
+.type-opt.selected.time_limited{border-color:#f59e0b;background:rgba(245,158,11,0.1);color:var(--text);font-weight:600}
+
+.time-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#conditional-fields{display:none;margin-top:2px}
+
+.drawer-actions{display:flex;gap:8px;margin-top:20px}
+.btn-cancel{
+  flex:1;padding:10px;border-radius:8px;
+  border:1px solid var(--border);background:var(--btn-bg);
+  color:var(--muted);font-size:13px;cursor:pointer;
+}
+.btn-submit{
+  flex:2;padding:10px;border-radius:8px;
+  border:none;background:#22c55e;
+  color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.15s;
+}
+.btn-submit:hover{opacity:0.9}
+.btn-submit:disabled{opacity:0.5;cursor:not-allowed}
+
+#toast{
+  position:absolute;bottom:60px;left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:#22c55e;color:#fff;
+  padding:10px 20px;border-radius:10px;
+  font-size:13px;font-weight:600;
+  opacity:0;transition:all 0.3s;z-index:40;
+  pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+body.adding-mode #map{cursor:crosshair}
+.hint-bar{
+  position:absolute;top:16px;left:50%;
+  transform:translateX(-50%);
+  background:rgba(34,197,94,0.9);color:#fff;
+  padding:8px 18px;border-radius:20px;
+  font-size:12px;font-weight:600;z-index:10;
+  display:none;white-space:nowrap;
+}
+body.adding-mode .hint-bar{display:block}
+</style>
+</head>
+<body class="dark">
+<div id="map"></div>
+<div class="hint-bar">Click anywhere on the map to drop a pin</div>
+
+<div id="panel">
+  <h1>ParkSpot</h1>
+  <div class="sub">Mountain View, CA</div>
+  <div class="section-label">Filter by type</div>
+  <div class="filters">
+    <button class="filter-btn active" data-type="all" onclick="setFilter('all')">
+      <div class="dot" style="background:#378ADD"></div>All spots
+      <span class="count" id="count-all">—</span>
+    </button>
+    <button class="filter-btn" data-type="free" onclick="setFilter('free')">
+      <div class="dot" style="background:#22c55e"></div>Free
+      <span class="count" id="count-free">—</span>
+    </button>
+    <button class="filter-btn" data-type="time_limited" onclick="setFilter('time_limited')">
+      <div class="dot" style="background:#f59e0b"></div>Time limited
+      <span class="count" id="count-time_limited">—</span>
+    </button>
+    <button class="filter-btn" data-type="paid" onclick="setFilter('paid')">
+      <div class="dot" style="background:#ef4444"></div>Paid
+      <span class="count" id="count-paid">—</span>
+    </button>
+  </div>
+  <div class="section-label">Map tilt</div>
+  <div class="slider-row">
+    <div class="slider-label"><span>Flat</span><span>3D</span></div>
+    <input type="range" min="0" max="60" value="45" step="1" oninput="setPitch(this.value)"/>
+  </div>
+  <button id="add-btn" onclick="toggleAddMode()">+ Add a spot</button>
+  <button id="theme-btn" onclick="toggleTheme()">Switch to light mode</button>
+</div>
+
+<div id="stats">Showing <span id="stat-count">—</span> spots</div>
+<div id="tooltip"></div>
+
+<div id="drawer">
+  <h2>Add a parking spot</h2>
+  <div class="dsub" id="drawer-coords">Drop a pin on the map first</div>
+  <div class="field">
+    <label>Spot type</label>
+    <div class="type-grid">
+      <div class="type-opt free selected" onclick="selectType('free')">
+        <div class="dot" style="background:#22c55e"></div>Free
+      </div>
+      <div class="type-opt time_limited" onclick="selectType('time_limited')">
+        <div class="dot" style="background:#f59e0b"></div>Time limited
+      </div>
+      <div class="type-opt paid" onclick="selectType('paid')">
+        <div class="dot" style="background:#ef4444"></div>Paid
+      </div>
+    </div>
+  </div>
+  <div id="conditional-fields">
+    <div class="field" id="field-hours" style="display:none">
+      <label>Free hours</label>
+      <div class="time-row">
+        <input type="time" id="free-from" placeholder="From"/>
+        <input type="time" id="free-until" placeholder="Until"/>
+      </div>
+    </div>
+    <div class="field" id="field-rate" style="display:none">
+      <label>Hourly rate ($)</label>
+      <input type="number" id="hourly-rate" min="0" step="0.25" placeholder="e.g. 2.50"/>
+    </div>
+  </div>
+  <div class="field">
+    <label>Name / label (optional)</label>
+    <input type="text" id="spot-name" placeholder="e.g. Castro St garage"/>
+  </div>
+  <div class="field">
+    <label>Notes (optional)</label>
+    <textarea id="spot-notes" placeholder="e.g. Free on weekends, 2hr limit weekdays"></textarea>
+  </div>
+  <div class="field">
+    <label>Capacity (optional)</label>
+    <input type="number" id="spot-capacity" min="1" placeholder="Number of spaces"/>
+  </div>
+  <div class="drawer-actions">
+    <button class="btn-cancel" onclick="closeDrawer()">Cancel</button>
+    <button class="btn-submit" id="submit-btn" onclick="submitSpot()" disabled>Drop a pin first</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const {DeckGL, ScatterplotLayer, HexagonLayer} = deck;
+const DARK_STYLE  = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const TYPE_COLORS = {
+  free:[34,197,94], time_limited:[245,158,11], paid:[239,68,68], default:[55,138,221]
+};
+
+let allSpots=[], filteredSpots=[], currentFilter='all';
+let isDark=true, isAddingMode=false, pendingPin=null, selectedType='free';
+let deckgl;
+
+function getColor(d){return TYPE_COLORS[d.properties.spot_type]||TYPE_COLORS.default}
+
+function buildLayers(spots){
+  const zoom=deckgl?.viewState?.zoom||13;
+  const layers=[];
+  if(zoom<12){
+    layers.push(new HexagonLayer({
+      id:'hex',data:spots,
+      getPosition:d=>d.geometry.coordinates,
+      radius:150,extruded:true,elevationScale:4,elevationRange:[0,200],
+      colorRange:[[34,197,94,180],[100,210,80,200],[245,158,11,200],[239,120,50,210],[239,68,68,220],[200,30,30,240]],
+      pickable:false,coverage:0.9,
+    }));
+  } else {
+    layers.push(new ScatterplotLayer({
+      id:'spots',data:spots,
+      getPosition:d=>d.geometry.coordinates,
+      getFillColor:d=>[...getColor(d),210],
+      getRadius:6,radiusUnits:'pixels',radiusMinPixels:3,radiusMaxPixels:14,
+      pickable:true,stroked:true,
+      getLineColor:d=>getColor(d).map(c=>Math.max(0,c-60)),
+      lineWidthMinPixels:0.5,
+      onHover:({object,x,y})=>object?showTooltip(object,x,y):hideTooltip(),
+    }));
+  }
+  if(pendingPin){
+    layers.push(new ScatterplotLayer({
+      id:'pin',data:[pendingPin],
+      getPosition:d=>[d.lng,d.lat],
+      getFillColor:[34,197,94,255],getRadius:10,radiusUnits:'pixels',
+      stroked:true,getLineColor:[255,255,255],lineWidthMinPixels:2,pickable:false,
+    }));
+  }
+  return layers;
+}
+
+function render(){
+  if(!deckgl)return;
+  deckgl.setProps({layers:buildLayers(filteredSpots)});
+  document.getElementById('stat-count').textContent=filteredSpots.length.toLocaleString();
+}
+
+function setFilter(type){
+  currentFilter=type;
+  filteredSpots=type==='all'?allSpots:allSpots.filter(d=>d.properties.spot_type===type);
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
+  render();
+}
+
+function setPitch(val){
+  deckgl?.setProps({initialViewState:{...deckgl.viewState,pitch:Number(val),transitionDuration:300}});
+}
+
+function toggleTheme(){
+  isDark=!isDark;
+  document.body.className=(isDark?'dark':'light')+(isAddingMode?' adding-mode':'');
+  document.getElementById('theme-btn').textContent=isDark?'Switch to light mode':'Switch to dark mode';
+  deckgl?.setProps({mapStyle:isDark?DARK_STYLE:LIGHT_STYLE});
+}
+
+function toggleAddMode(){
+  isAddingMode=!isAddingMode;
+  const btn=document.getElementById('add-btn');
+  if(isAddingMode){
+    btn.textContent='✕ Cancel adding';btn.classList.add('active');
+    document.body.classList.add('adding-mode');
+  } else {
+    btn.textContent='+ Add a spot';btn.classList.remove('active');
+    document.body.classList.remove('adding-mode');
+    closeDrawer();pendingPin=null;render();
+  }
+}
+
+function openDrawer(){document.getElementById('drawer').classList.add('open')}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  if(isAddingMode)toggleAddMode();
+}
+
+function handleMapClick(info){
+  if(!isAddingMode)return;
+  const{coordinate}=info;
+  if(!coordinate)return;
+  pendingPin={lng:coordinate[0],lat:coordinate[1]};
+  document.getElementById('drawer-coords').textContent=
+    `${coordinate[1].toFixed(5)}, ${coordinate[0].toFixed(5)}`;
+  const btn=document.getElementById('submit-btn');
+  btn.disabled=false;btn.textContent='Submit spot';
+  openDrawer();render();
+}
+
+function selectType(type){
+  selectedType=type;
+  document.querySelectorAll('.type-opt').forEach(el=>{
+    el.classList.remove('selected');
+    if(el.classList.contains(type))el.classList.add('selected');
+  });
+  const cf=document.getElementById('conditional-fields');
+  const hf=document.getElementById('field-hours');
+  const rf=document.getElementById('field-rate');
+  if(type==='time_limited'){cf.style.display='block';hf.style.display='block';rf.style.display='none'}
+  else if(type==='paid'){cf.style.display='block';hf.style.display='none';rf.style.display='block'}
+  else{cf.style.display='none'}
+}
+
+async function submitSpot(){
+  if(!pendingPin)return;
+  const btn=document.getElementById('submit-btn');
+  btn.disabled=true;btn.textContent='Submitting...';
+  const params=new URLSearchParams({
+    lat:pendingPin.lat,lng:pendingPin.lng,spot_type:selectedType,
+    name:document.getElementById('spot-name').value||'',
+    notes:document.getElementById('spot-notes').value||'',
+    capacity:document.getElementById('spot-capacity').value||'',
+    free_from:document.getElementById('free-from')?.value||'',
+    free_until:document.getElementById('free-until')?.value||'',
+    hourly_rate:document.getElementById('hourly-rate')?.value||'',
+  });
+  try{
+    const res=await fetch('/api/spots?'+params.toString(),{method:'POST'});
+    const data=await res.json();
+    if(data.success){
+      const newSpot={
+        type:'Feature',
+        geometry:{type:'Point',coordinates:[pendingPin.lng,pendingPin.lat]},
+        properties:{id:data.id,spot_type:selectedType,
+          name:document.getElementById('spot-name').value||null,
+          notes:document.getElementById('spot-notes').value||null,
+          source:'user',verified:false,upvotes:0}
+      };
+      allSpots.push(newSpot);
+      updateCounts(allSpots);
+      setFilter(currentFilter);
+      pendingPin=null;closeDrawer();showToast('Spot added — thank you!');
+      document.getElementById('spot-name').value='';
+      document.getElementById('spot-notes').value='';
+      document.getElementById('spot-capacity').value='';
+      selectType('free');
+    }
+  } catch(e){showToast('Something went wrong — try again',true)}
+  btn.disabled=false;btn.textContent='Submit spot';
+}
+
+function showToast(msg,isError=false){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.style.background=isError?'#ef4444':'#22c55e';
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+function showTooltip(object,x,y){
+  if(!object)return;
+  const p=object.properties;
+  const typeLabel={free:'Free parking',paid:'Paid parking',time_limited:'Time limited'}[p.spot_type]||p.spot_type;
+  const color=TYPE_COLORS[p.spot_type]||TYPE_COLORS.default;
+  const el=document.getElementById('tooltip');
+  el.style.display='block';
+  el.style.left=(x+12)+'px';el.style.top=(y-10)+'px';
+  el.innerHTML=`
+    <div class="tt-type" style="color:rgb(${color.join(',')})"> ${typeLabel}</div>
+    ${p.name?`<div style="font-weight:600;margin-bottom:4px">${p.name}</div>`:''}
+    ${p.hourly_rate?`<div class="tt-row">Rate <span>$${p.hourly_rate}/hr</span></div>`:''}
+    ${p.free_from?`<div class="tt-row">Free from <span>${p.free_from} – ${p.free_until||'?'}</span></div>`:''}
+    ${p.capacity?`<div class="tt-row">Capacity <span>${p.capacity} spots</span></div>`:''}
+    <div class="tt-row">Source <span>${p.source==='osm'?'OpenStreetMap':'You'}</span></div>
+    ${!p.verified?`<div style="margin-top:4px;font-size:10px;color:var(--muted)">Unverified submission</div>`:''}
+  `;
+}
+
+function hideTooltip(){document.getElementById('tooltip').style.display='none'}
+
+function updateCounts(spots){
+  const counts={all:spots.length,free:0,paid:0,time_limited:0};
+  spots.forEach(d=>{if(counts[d.properties.spot_type]!==undefined)counts[d.properties.spot_type]++});
+  Object.entries(counts).forEach(([type,count])=>{
+    const el=document.getElementById('count-'+type);
+    if(el)el.textContent=count.toLocaleString();
+  });
+}
+
+async function loadSpots(){
+  try{
+    const res=await fetch('/api/spots?limit=2000');
+    const geojson=await res.json();
+    allSpots=geojson.features||[];
+    filteredSpots=allSpots;
+    updateCounts(allSpots);render();
+  }catch(e){console.error('Failed to load spots:',e)}
+}
+
+deckgl=new DeckGL({
+  container:'map',mapStyle:DARK_STYLE,
+  initialViewState:{longitude:-122.0840,latitude:37.3861,zoom:13,pitch:45,bearing:0},
+  controller:true,layers:[],
+  onClick:(info)=>{if(isAddingMode)handleMapClick(info);else hideTooltip()},
+  onViewStateChange:({viewState})=>{deckgl.setProps({initialViewState:viewState});render()},
+});
+
+loadSpots();
+</script>
+</body>
+</html>
