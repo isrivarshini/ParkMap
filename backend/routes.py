@@ -7,26 +7,42 @@ from typing import Optional
 router = APIRouter()
 
 
+@router.get("/api/cities")
+async def get_cities(db: AsyncSession = Depends(get_db)):
+    try:
+        result = await db.execute(text("""
+            SELECT slug, name, center_lat, center_lng, default_zoom
+            FROM cities ORDER BY name
+        """))
+        rows = result.mappings().all()
+        return {"cities": [dict(r) for r in rows]}
+    except Exception:
+        return {"cities": [
+            {"slug": "mountain_view", "name": "Mountain View",
+             "center_lat": 37.3861, "center_lng": -122.0840, "default_zoom": 13}
+        ]}
+
+
 @router.get("/api/spots")
 async def get_spots(
     db: AsyncSession = Depends(get_db),
-    spot_type: Optional[str] = Query(None, description="free | paid | time_limited | all"),
-    lat: Optional[float] = Query(None, description="center latitude for radius search"),
-    lng: Optional[float] = Query(None, description="center longitude for radius search"),
-    radius: Optional[int] = Query(1000, description="search radius in meters"),
-    limit: Optional[int] = Query(500, description="max spots to return"),
+    spot_type: Optional[str] = Query(None),
+    lat: Optional[float] = Query(None),
+    lng: Optional[float] = Query(None),
+    radius: Optional[int] = Query(1000),
+    city: Optional[str] = Query(None),
+    limit: Optional[int] = Query(500),
 ):
-    """
-    Return parking spots as GeoJSON FeatureCollection.
-    Supports filtering by type and radius search around a coordinate.
-    """
-
     filters = ["1=1"]
     params: dict = {"limit": limit}
 
     if spot_type and spot_type != "all":
         filters.append("spot_type = :spot_type")
         params["spot_type"] = spot_type
+
+    if city:
+        filters.append("city_slug = :city")
+        params["city"] = city
 
     if lat is not None and lng is not None:
         filters.append(
@@ -39,23 +55,12 @@ async def get_spots(
     where_clause = " AND ".join(filters)
 
     query = text(f"""
-        SELECT
-            id,
-            spot_type,
-            name,
-            address,
-            notes,
-            hourly_rate,
-            free_from,
-            free_until,
-            free_days,
-            capacity,
-            source,
-            upvotes,
-            downvotes,
-            verified,
-            ST_X(geom::geometry) AS lng,
-            ST_Y(geom::geometry) AS lat
+        SELECT id, spot_type, name, address, notes, hourly_rate,
+               free_from, free_until, free_days, capacity, source,
+               upvotes, downvotes, verified,
+               COALESCE(city_slug, 'mountain_view') as city_slug,
+               ST_X(geom::geometry) AS lng,
+               ST_Y(geom::geometry) AS lat
         FROM spots
         WHERE {where_clause}
         LIMIT :limit
@@ -68,10 +73,7 @@ async def get_spots(
     for row in rows:
         features.append({
             "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [row["lng"], row["lat"]]
-            },
+            "geometry": {"type": "Point", "coordinates": [row["lng"], row["lat"]]},
             "properties": {
                 "id": row["id"],
                 "spot_type": row["spot_type"],
@@ -87,21 +89,16 @@ async def get_spots(
                 "upvotes": row["upvotes"],
                 "downvotes": row["downvotes"],
                 "verified": row["verified"],
+                "city_slug": row["city_slug"],
             }
         })
 
-    return {
-        "type": "FeatureCollection",
-        "count": len(features),
-        "features": features
-    }
+    return {"type": "FeatureCollection", "count": len(features), "features": features}
 
 
 @router.post("/api/spots")
 async def create_spot(
-    spot_type: str,
-    lat: float,
-    lng: float,
+    lat: float, lng: float, spot_type: str,
     db: AsyncSession = Depends(get_db),
     name: Optional[str] = None,
     address: Optional[str] = None,
@@ -110,38 +107,32 @@ async def create_spot(
     free_from: Optional[str] = None,
     free_until: Optional[str] = None,
     capacity: Optional[int] = None,
+    city: Optional[str] = "mountain_view",
 ):
-    """
-    Anonymous user submission — add a new parking spot.
-    """
     query = text("""
         INSERT INTO spots
             (geom, spot_type, name, address, notes, hourly_rate,
-             free_from, free_until, source)
+             free_from, free_until, source, city_slug)
         VALUES
             (ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
              :spot_type, :name, :address, :notes, :hourly_rate,
-             :free_from, :free_until, 'user')
+             :free_from, :free_until, 'user', :city)
         RETURNING id
     """)
-
     result = await db.execute(query, {
         "lng": lng, "lat": lat, "spot_type": spot_type,
         "name": name, "address": address, "notes": notes,
         "hourly_rate": hourly_rate, "free_from": free_from,
-        "free_until": free_until,
+        "free_until": free_until, "city": city,
     })
     await db.commit()
-    new_id = result.scalar()
-
-    return {"success": True, "id": new_id, "message": "Spot added — thanks for contributing!"}
+    return {"success": True, "id": result.scalar(), "message": "Spot added!"}
 
 
 @router.post("/api/spots/{spot_id}/upvote")
 async def upvote_spot(spot_id: int, db: AsyncSession = Depends(get_db)):
     await db.execute(
-        text("UPDATE spots SET upvotes = upvotes + 1 WHERE id = :id"),
-        {"id": spot_id}
+        text("UPDATE spots SET upvotes = upvotes + 1 WHERE id = :id"), {"id": spot_id}
     )
     await db.commit()
     return {"success": True}
