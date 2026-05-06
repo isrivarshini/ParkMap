@@ -28,25 +28,52 @@ body.light{
 #panel{
   position:absolute;top:16px;left:16px;
   background:var(--bg);border:1px solid var(--border);
-  border-radius:14px;padding:16px;width:232px;z-index:10;
+  border-radius:14px;padding:16px;width:236px;z-index:10;
   max-height:calc(100vh - 32px);overflow-y:auto;
 }
 #panel h1{font-size:15px;font-weight:600;color:var(--text);margin-bottom:12px}
 .section-label{font-size:10px;font-weight:600;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
 
-/* city select */
-#city-select{
-  width:100%;padding:8px 10px;border-radius:8px;
-  border:1px solid var(--input-border);background:var(--input-bg);
-  color:var(--text);font-size:12px;font-family:inherit;
-  outline:none;cursor:pointer;margin-bottom:12px;
-  appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 10px center;
-  padding-right:28px;
+/* city checklist */
+.city-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.city-header .section-label{margin-bottom:0}
+.city-actions{display:flex;gap:6px}
+.city-action-btn{
+  font-size:10px;color:var(--muted);background:none;border:none;
+  cursor:pointer;padding:2px 4px;border-radius:4px;
+  transition:color 0.15s;
 }
-#city-select:focus{border-color:#378ADD}
-#city-select option{background:var(--bg-solid);color:var(--text)}
+.city-action-btn:hover{color:var(--text)}
+
+.city-list{
+  display:flex;flex-direction:column;gap:3px;
+  margin-bottom:12px;max-height:180px;overflow-y:auto;
+  padding-right:2px;
+}
+.city-list::-webkit-scrollbar{width:3px}
+.city-list::-webkit-scrollbar-track{background:transparent}
+.city-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+.city-item{
+  display:flex;align-items:center;gap:8px;
+  padding:5px 8px;border-radius:7px;cursor:pointer;
+  transition:background 0.1s;user-select:none;
+}
+.city-item:hover{background:var(--btn-hover)}
+.city-item input[type=checkbox]{
+  width:13px;height:13px;cursor:pointer;accent-color:#378ADD;flex-shrink:0;
+}
+.city-item-name{font-size:12px;color:var(--text);flex:1}
+.city-item-count{font-size:10px;color:var(--muted)}
+
+/* fly-to button per city */
+.city-fly{
+  font-size:10px;color:var(--muted);background:none;border:none;
+  cursor:pointer;padding:2px 5px;border-radius:4px;opacity:0;
+  transition:opacity 0.1s,color 0.1s;
+}
+.city-item:hover .city-fly{opacity:1}
+.city-fly:hover{color:#378ADD}
 
 /* search */
 .search-wrap{position:relative;margin-bottom:10px}
@@ -60,11 +87,10 @@ body.light{
 #search-input::placeholder{color:var(--muted)}
 #search-clear{
   position:absolute;right:8px;top:50%;transform:translateY(-50%);
-  background:none;border:none;cursor:pointer;
-  color:var(--muted);font-size:14px;display:none;line-height:1;
+  background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;display:none;
 }
 #search-results{
-  position:absolute;top:calc(100%+4px);left:0;right:0;
+  position:absolute;top:calc(100% + 4px);left:0;right:0;
   background:var(--bg-solid);border:1px solid var(--border);
   border-radius:8px;z-index:50;overflow:hidden;display:none;
 }
@@ -128,11 +154,7 @@ body.light{
   display:flex;align-items:center;gap:8px;
 }
 #stats span{color:var(--text);font-weight:600}
-#loading-dot{
-  width:6px;height:6px;border-radius:50%;
-  background:#378ADD;display:none;
-  animation:pulse 0.8s infinite;
-}
+#loading-dot{width:6px;height:6px;border-radius:50%;background:#378ADD;display:none;animation:pulse 0.8s infinite}
 
 /* tooltip */
 #tooltip{
@@ -148,7 +170,7 @@ body.light{
 .tt-vote{
   flex:1;padding:5px;border-radius:6px;border:1px solid var(--border);
   background:var(--btn-bg);color:var(--muted);font-size:11px;
-  cursor:pointer;text-align:center;transition:background 0.1s;
+  cursor:pointer;text-align:center;transition:background 0.1s;pointer-events:all;
 }
 .tt-vote:hover{background:var(--btn-hover)}
 
@@ -207,6 +229,19 @@ body.adding-mode #map{cursor:crosshair}
   font-size:12px;font-weight:600;z-index:10;display:none;white-space:nowrap;
 }
 body.adding-mode .hint-bar{display:block}
+
+/* selected cities pills */
+#selected-pills{
+  display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;min-height:0;
+}
+.pill{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 8px;border-radius:20px;font-size:10px;font-weight:500;
+  background:rgba(55,138,221,0.15);border:1px solid rgba(55,138,221,0.3);
+  color:#378ADD;
+}
+.pill-x{cursor:pointer;opacity:0.7;font-size:11px;line-height:1}
+.pill-x:hover{opacity:1}
 </style>
 </head>
 <body class="dark">
@@ -216,10 +251,18 @@ body.adding-mode .hint-bar{display:block}
 <div id="panel">
   <h1>ParkSpot 🅿️</h1>
 
-  <div class="section-label">Jump to city</div>
-  <select id="city-select" onchange="switchCity(this.value)">
-    <option value="">Loading cities…</option>
-  </select>
+  <div class="city-header">
+    <div class="section-label">Cities</div>
+    <div class="city-actions">
+      <button class="city-action-btn" onclick="selectAllCities()">All</button>
+      <button class="city-action-btn" onclick="clearAllCities()">None</button>
+    </div>
+  </div>
+
+  <div id="selected-pills"></div>
+  <div class="city-list" id="city-list">
+    <div style="font-size:12px;color:var(--muted);padding:8px">Loading cities…</div>
+  </div>
 
   <div class="section-label">Search location</div>
   <div class="search-wrap">
@@ -321,16 +364,21 @@ const TYPE_COLORS = {free:[34,197,94],time_limited:[245,158,11],paid:[239,68,68]
 
 let viewportSpots=[], currentFilter='all';
 let isDark=true, isAddingMode=false, pendingPin=null, selectedType='free';
-let userLocation=null, cities=[], currentCitySlug=null;
+let userLocation=null, cities=[];
+let selectedCities=new Set(); // slugs of checked cities
 let viewportDebounce=null, searchDebounce=null;
 let deckgl, currentViewState;
 
 function getColor(d){return TYPE_COLORS[d.properties.spot_type]||TYPE_COLORS.default}
 
 function filteredSpots(){
-  return currentFilter==='all'
-    ?viewportSpots
-    :viewportSpots.filter(d=>d.properties.spot_type===currentFilter);
+  let spots=viewportSpots;
+  // filter by selected cities if not all
+  if(selectedCities.size>0 && selectedCities.size<cities.length){
+    spots=spots.filter(d=>selectedCities.has(d.properties.city_slug));
+  }
+  if(currentFilter!=='all') spots=spots.filter(d=>d.properties.spot_type===currentFilter);
+  return spots;
 }
 
 function buildLayers(){
@@ -338,28 +386,33 @@ function buildLayers(){
   const spots=filteredSpots();
   const layers=[];
 
-  if(zoom<10){
-    layers.push(new HexagonLayer({
-      id:'hex',data:spots,
-      getPosition:d=>d.geometry.coordinates,
-      radius:300,extruded:true,elevationScale:6,elevationRange:[0,500],
-      colorRange:[[34,197,94,180],[100,210,80,200],[245,158,11,200],[239,120,50,210],[239,68,68,220],[200,30,30,240]],
-      pickable:false,coverage:0.85,
-    }));
-  } else {
-    layers.push(new deck.ScatterplotLayer({
-      id:'spots',data:spots,
-      getPosition:d=>d.geometry.coordinates,
-      getFillColor:d=>[...getColor(d),210],
-      getRadius:zoom>14?8:6,
-      radiusUnits:'pixels',radiusMinPixels:3,radiusMaxPixels:16,
-      pickable:true,stroked:true,
-      getLineColor:d=>getColor(d).map(c=>Math.max(0,c-60)),
-      lineWidthMinPixels:0.5,
-      onHover:({object,x,y})=>object?showTooltip(object,x,y):hideTooltip(),
-    }));
-  }
+  // smooth radius scaling — grows linearly as you zoom in
+  // zoom 4 (US view) → 2px,  zoom 10 → 4px,  zoom 14 → 8px,  zoom 18 → 14px
+  const radius = Math.max(2, Math.min(14, (zoom - 2) * 0.9));
 
+  // smooth opacity scaling — more transparent when zoomed out (many overlapping dots)
+  // zoom 4 → 120,  zoom 10 → 180,  zoom 14+ → 220
+  const opacity = Math.max(80, Math.min(220, zoom * 18));
+
+  layers.push(new deck.ScatterplotLayer({
+    id:'spots',
+    data:spots,
+    getPosition:d=>d.geometry.coordinates,
+    getFillColor:d=>[...getColor(d), opacity],
+    getRadius:radius,
+    radiusUnits:'pixels',
+    radiusMinPixels:2,
+    radiusMaxPixels:16,
+    pickable:true,
+    stroked:zoom>10,
+    getLineColor:d=>getColor(d).map(c=>Math.max(0,c-60)),
+    lineWidthMinPixels:0.5,
+    onHover:({object,x,y})=>object?showTooltip(object,x,y):hideTooltip(),
+    updateTriggers:{
+      getFillColor:[opacity],
+      getRadius:[radius],
+    }
+  }));
   if(userLocation){
     layers.push(new deck.ScatterplotLayer({
       id:'user-loc',data:[userLocation],
@@ -368,7 +421,6 @@ function buildLayers(){
       stroked:true,getLineColor:[255,255,255],lineWidthMinPixels:2,pickable:false,
     }));
   }
-
   if(pendingPin){
     layers.push(new deck.ScatterplotLayer({
       id:'pin',data:[pendingPin],
@@ -377,7 +429,6 @@ function buildLayers(){
       stroked:true,getLineColor:[255,255,255],lineWidthMinPixels:2,pickable:false,
     }));
   }
-
   return layers;
 }
 
@@ -386,35 +437,30 @@ function render(){
   deckgl.setProps({layers:buildLayers()});
   const spots=filteredSpots();
   document.getElementById('stat-count').textContent=spots.length.toLocaleString();
-  updateCounts();
+  updateCounts(spots);
 }
 
 // ---- VIEWPORT LOADING ----
 async function loadViewport(viewState){
   if(!viewState)return;
   const{longitude,latitude,zoom}=viewState;
-
-  // calculate visible bounding box from zoom + viewport size
-  const w=window.innerWidth, h=window.innerHeight;
-  const lngDelta=(w/2)/((256*Math.pow(2,zoom))/360);
-  const latDelta=(h/2)/((256*Math.pow(2,zoom))/(360/Math.cos(latitude*Math.PI/180)));
+  const w=window.innerWidth,h=window.innerHeight;
+  const lngD=(w/2)/((256*Math.pow(2,zoom))/360);
+  const latD=(h/2)/((256*Math.pow(2,zoom))/(360/Math.cos(latitude*Math.PI/180)));
   const pad=0.1;
-  const minLng=longitude-lngDelta-pad, maxLng=longitude+lngDelta+pad;
-  const minLat=latitude-latDelta-pad,  maxLat=latitude+latDelta+pad;
+  const minLng=longitude-lngD-pad, maxLng=longitude+lngD+pad;
+  const minLat=latitude-latD-pad,  maxLat=latitude+latD+pad;
 
-  const dot=document.getElementById('loading-dot');
-  dot.style.display='block';
-
+  document.getElementById('loading-dot').style.display='block';
   try{
-    let url=`/api/spots/viewport?min_lng=${minLng}&min_lat=${minLat}&max_lng=${maxLng}&max_lat=${maxLat}&limit=1500`;
+    let url=`/api/spots/viewport?min_lng=${minLng}&min_lat=${minLat}&max_lng=${maxLng}&max_lat=${maxLat}&limit=2000`;
     if(currentFilter!=='all') url+=`&spot_type=${currentFilter}`;
     const res=await fetch(url);
     const data=await res.json();
     viewportSpots=data.features||[];
     render();
   }catch(e){console.error('Viewport load failed:',e)}
-
-  dot.style.display='none';
+  document.getElementById('loading-dot').style.display='none';
 }
 
 function scheduleViewportLoad(viewState){
@@ -422,47 +468,100 @@ function scheduleViewportLoad(viewState){
   viewportDebounce=setTimeout(()=>loadViewport(viewState),250);
 }
 
-// ---- FILTERS ----
+// ---- CITIES ----
+async function loadCities(){
+  try{
+    const res=await fetch('/api/cities');
+    const data=await res.json();
+    cities=data.cities||[];
+    // default: select Mountain View (or first city)
+    const first=cities.find(c=>c.slug==='mountain_view')||cities[0];
+    if(first) selectedCities.add(first.slug);
+    renderCityList();
+    renderPills();
+    if(first) flyToCity(first);
+  }catch(e){console.error('Could not load cities',e)}
+}
+
+function renderCityList(){
+  const list=document.getElementById('city-list');
+  if(!cities.length){
+    list.innerHTML='<div style="font-size:12px;color:var(--muted);padding:8px">No cities found — run the ingestion script first.</div>';
+    return;
+  }
+  list.innerHTML=cities.map(c=>`
+    <label class="city-item">
+      <input type="checkbox" ${selectedCities.has(c.slug)?'checked':''} onchange="toggleCity('${c.slug}',this.checked)"/>
+      <span class="city-item-name">${c.name}</span>
+      <button class="city-fly" onclick="flyToSlug(event,'${c.slug}')">↗</button>
+    </label>
+  `).join('');
+}
+
+function renderPills(){
+  const el=document.getElementById('selected-pills');
+  if(selectedCities.size===0||selectedCities.size===cities.length){
+    el.innerHTML='';return;
+  }
+  el.innerHTML=[...selectedCities].map(slug=>{
+    const city=cities.find(c=>c.slug===slug);
+    if(!city)return'';
+    const short=city.name.replace('Mountain View','Mtn View').replace('San Francisco','SF').replace('Los Angeles','LA').replace('New York City','NYC').replace('Philadelphia','Philly').replace('San Antonio','San Antonio').replace('Indianapolis','Indianapolis').replace('Jacksonville','Jacksonville');
+    return`<div class="pill">${short}<span class="pill-x" onclick="toggleCity('${slug}',false)">✕</span></div>`;
+  }).join('');
+}
+
+function toggleCity(slug, checked){
+  if(checked) selectedCities.add(slug);
+  else selectedCities.delete(slug);
+  renderCityList();
+  renderPills();
+  render();
+}
+
+function selectAllCities(){
+  cities.forEach(c=>selectedCities.add(c.slug));
+  renderCityList();
+  renderPills();
+  render();
+  showToast(`Showing all ${cities.length} cities`);
+}
+
+function clearAllCities(){
+  selectedCities.clear();
+  renderCityList();
+  renderPills();
+  render();
+  showToast('All cities deselected',true);
+}
+
+function flyToCity(city){
+  if(!city||!deckgl)return;
+  deckgl.setProps({initialViewState:{
+    longitude:city.center_lng,latitude:city.center_lat,
+    zoom:city.default_zoom,pitch:45,bearing:0,transitionDuration:700,
+  }});
+}
+
+function flyToSlug(e, slug){
+  e.preventDefault();e.stopPropagation();
+  const city=cities.find(c=>c.slug===slug);
+  if(city) flyToCity(city);
+}
+
+// ---- FILTER ----
 function setFilter(type){
   currentFilter=type;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
   loadViewport(currentViewState);
 }
 
-function updateCounts(){
-  const counts={all:viewportSpots.length,free:0,paid:0,time_limited:0};
-  viewportSpots.forEach(d=>{if(counts[d.properties.spot_type]!==undefined)counts[d.properties.spot_type]++});
+function updateCounts(spots){
+  const counts={all:spots.length,free:0,paid:0,time_limited:0};
+  spots.forEach(d=>{if(counts[d.properties.spot_type]!==undefined)counts[d.properties.spot_type]++});
   Object.entries(counts).forEach(([t,c])=>{
     const el=document.getElementById('count-'+t);if(el)el.textContent=c.toLocaleString();
   });
-}
-
-// ---- CITY SELECT ----
-async function loadCities(){
-  try{
-    const res=await fetch('/api/cities');
-    const data=await res.json();
-    cities=data.cities||[];
-    const sel=document.getElementById('city-select');
-    sel.innerHTML='<option value="">— Select a city —</option>'+
-      cities.map(c=>`<option value="${c.slug}">${c.name}</option>`).join('');
-    if(cities.length>0){
-      const first=cities.find(c=>c.slug==='mountain_view')||cities[0];
-      sel.value=first.slug;
-      switchCity(first.slug);
-    }
-  }catch(e){console.error('Could not load cities',e)}
-}
-
-function switchCity(slug){
-  if(!slug)return;
-  currentCitySlug=slug;
-  const city=cities.find(c=>c.slug===slug);
-  if(!city||!deckgl)return;
-  deckgl.setProps({initialViewState:{
-    longitude:city.center_lng,latitude:city.center_lat,
-    zoom:city.default_zoom,pitch:45,bearing:0,transitionDuration:800,
-  }});
 }
 
 // ---- THEME + PITCH ----
@@ -523,7 +622,7 @@ async function doSearch(q){
     el.innerHTML=data.map(r=>{
       const name=r.display_name.split(',')[0];
       const sub=r.display_name.split(',').slice(1,3).join(',').trim();
-      return `<div class="search-result" onclick="selectResult(${r.lat},${r.lon},'${name.replace(/'/g,"\\'")}')">
+      return`<div class="search-result" onclick="selectResult(${r.lat},${r.lon},'${name.replace(/'/g,"\\'")}')">
         <div class="sr-name">${name}</div><div class="sr-sub">${sub}</div>
       </div>`;
     }).join('');
@@ -592,6 +691,11 @@ async function submitSpot(){
   if(!pendingPin)return;
   const btn=document.getElementById('submit-btn');
   btn.disabled=true;btn.textContent='Submitting…';
+  // figure out which city the pin is in (closest)
+  let pinCity='mountain_view';
+  if(selectedCities.size>0){
+    pinCity=[...selectedCities][0];
+  }
   const params=new URLSearchParams({
     lat:pendingPin.lat,lng:pendingPin.lng,spot_type:selectedType,
     name:document.getElementById('spot-name').value||'',
@@ -600,7 +704,7 @@ async function submitSpot(){
     free_from:document.getElementById('free-from')?.value||'',
     free_until:document.getElementById('free-until')?.value||'',
     hourly_rate:document.getElementById('hourly-rate')?.value||'',
-    city:currentCitySlug||'mountain_view',
+    city:pinCity,
   });
   try{
     const res=await fetch('/api/spots?'+params.toString(),{method:'POST'});
@@ -608,9 +712,7 @@ async function submitSpot(){
     if(data.success){
       pendingPin=null;closeDrawer();
       showToast('Spot added — thank you!');
-      document.getElementById('spot-name').value='';
-      document.getElementById('spot-notes').value='';
-      document.getElementById('spot-capacity').value='';
+      ['spot-name','spot-notes','spot-capacity'].forEach(id=>document.getElementById(id).value='');
       selectType('free');
       loadViewport(currentViewState);
     }
@@ -619,10 +721,8 @@ async function submitSpot(){
 }
 
 // ---- TOOLTIP ----
-let hoveredId=null;
 function showTooltip(object,x,y){
   if(!object)return;
-  hoveredId=object.properties.id;
   const p=object.properties;
   const typeLabel={free:'Free parking',paid:'Paid parking',time_limited:'Time limited'}[p.spot_type]||p.spot_type;
   const color=TYPE_COLORS[p.spot_type]||TYPE_COLORS.default;
@@ -632,6 +732,7 @@ function showTooltip(object,x,y){
   el.innerHTML=`
     <div class="tt-type" style="color:rgb(${color.join(',')})"> ${typeLabel}</div>
     ${p.name?`<div style="font-weight:600;margin-bottom:4px">${p.name}</div>`:''}
+    ${p.city_slug?`<div class="tt-row">City <span style="text-transform:capitalize">${p.city_slug.replace(/_/g,' ')}</span></div>`:''}
     ${p.hourly_rate?`<div class="tt-row">Rate <span>$${p.hourly_rate}/hr</span></div>`:''}
     ${p.free_from?`<div class="tt-row">Free <span>${p.free_from}–${p.free_until||'?'}</span></div>`:''}
     ${p.capacity?`<div class="tt-row">Capacity <span>${p.capacity} spots</span></div>`:''}
@@ -642,10 +743,7 @@ function showTooltip(object,x,y){
     </div>
   `;
 }
-function hideTooltip(){
-  document.getElementById('tooltip').style.display='none';
-  hoveredId=null;
-}
+function hideTooltip(){document.getElementById('tooltip').style.display='none'}
 async function vote(id,type){
   try{
     await fetch(`/api/spots/${id}/${type}`,{method:'POST'});
@@ -664,7 +762,7 @@ function showToast(msg,isError=false){
 // ---- INIT ----
 deckgl=new DeckGL({
   container:'map',mapStyle:DARK_STYLE,
-  initialViewState:{longitude:-122.0840,latitude:37.3861,zoom:13,pitch:45,bearing:0},
+  initialViewState:{longitude:-98.5795,latitude:39.8283,zoom:4,pitch:30,bearing:0},
   controller:true,layers:[],
   onClick:(info)=>{if(isAddingMode)handleMapClick(info);else hideTooltip()},
   onViewStateChange:({viewState})=>{
@@ -675,7 +773,7 @@ deckgl=new DeckGL({
   },
 });
 
-currentViewState={longitude:-122.0840,latitude:37.3861,zoom:13,pitch:45,bearing:0};
+currentViewState={longitude:-98.5795,latitude:39.8283,zoom:4,pitch:30,bearing:0};
 loadCities();
 loadViewport(currentViewState);
 </script>
